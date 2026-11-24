@@ -52,10 +52,15 @@ def generate_drift_report(n_samples: int = 2000, inject_drift: bool = False):
     df_stream = pd.read_csv(STREAM_DATA_PATH)
     current_sample = df_stream.sample(n=min(n_samples, len(df_stream)), random_state=123).copy()
 
-    # 3. Optional: Inject artificial elevation drift to test alert triggers
+    # 3. Optional: Inject artificial domain drift to test alert triggers
     if inject_drift:
-        print("⚠️  Injecting realistic domain shift: +400m elevation bias (subalpine survey shift)...")
-        current_sample["Elevation"] = current_sample["Elevation"] + 400.0
+        print("⚠️  Injecting realistic domain shift across key terrain features...")
+        current_sample["Elevation"] = current_sample["Elevation"] + 500.0
+        current_sample["Horizontal_Distance_To_Hydrology"] = current_sample["Horizontal_Distance_To_Hydrology"] * 1.5
+        current_sample["Horizontal_Distance_To_Roadways"] = current_sample["Horizontal_Distance_To_Roadways"] * 1.6
+        current_sample["Horizontal_Distance_To_Fire_Points"] = current_sample["Horizontal_Distance_To_Fire_Points"] * 1.5
+        current_sample["Slope"] = current_sample["Slope"] + 10.0
+        current_sample["Hillshade_Noon"] = (current_sample["Hillshade_Noon"] * 0.8).clip(0, 255)
 
     # Key continuous features to evaluate
     features_to_monitor = [
@@ -70,7 +75,11 @@ def generate_drift_report(n_samples: int = 2000, inject_drift: bool = False):
 
     # 4. Generate Evidently Drift Report
     print("3. Computing statistical drift tests across continuous features...")
-    report = Report(metrics=[DataDriftPreset()])
+    # Trigger overall dataset drift when >= 30% of features drift
+    try:
+        report = Report(metrics=[DataDriftPreset(drift_share=0.3)])
+    except TypeError:
+        report = Report(metrics=[DataDriftPreset()])
     report.run(reference_data=ref_subset, current_data=curr_subset)
 
     # 5. Save Output Artifacts

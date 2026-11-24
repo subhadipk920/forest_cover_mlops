@@ -20,7 +20,7 @@ pkill -f "backend/streaming/producer.py" 2>/dev/null || true
 # 2. Check / Ensure docker containers (Kafka, API) are running
 if ! docker ps | grep -q "forest_cover_mlops-api" && ! docker ps | grep -q "forest_api"; then
     echo "Starting local services (Kafka KRaft, FastAPI Engine)..."
-    docker compose up -d
+    docker compose up -d --no-recreate
     echo "Waiting 5 seconds for services to become healthy..."
     sleep 5
 fi
