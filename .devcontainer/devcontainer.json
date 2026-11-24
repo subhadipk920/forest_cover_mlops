@@ -2,7 +2,7 @@
   "name": "Forest Cover MLOps Environment",
   "image": "mcr.microsoft.com/devcontainers/universal:2-linux",
   "features": {
-    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
       "version": "latest",
       "enableOnMacOS": true
     }
@@ -22,6 +22,5 @@
       "onAutoForward": "silent"
     }
   },
-  "postCreateCommand": "chmod +x run_stream.sh 2>/dev/null || true",
-  "postStartCommand": "docker compose up -d"
+  "postCreateCommand": "chmod +x stream.sh check_drift.sh run_stream.sh 2>/dev/null || true"
 }
