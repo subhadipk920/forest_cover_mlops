@@ -16,30 +16,36 @@ TOPIC_PRED = os.getenv("KAFKA_TOPIC_PRED", "terrain_survey.predictions")
 API_URL = os.getenv("API_PREDICT_URL", "http://localhost:8000/predict")
 GROUP_ID = os.getenv("KAFKA_GROUP_ID", "forest-scoring-group")
 
-# Aiven PostgreSQL Connection
-PG_URI = os.getenv("MLFLOW_TRACKING_URI", "").replace("postgresql+psycopg2://", "postgres://")
-pg_conn = None
-if PG_URI and "aivencloud.com" in PG_URI:
-    try:
-        pg_conn = psycopg2.connect(PG_URI)
-        cur = pg_conn.cursor()
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS model_inferences (
-                id SERIAL PRIMARY KEY,
-                timestamp TIMESTAMPTZ DEFAULT NOW(),
-                elevation INT,
-                predicted_class INT,
-                tree_species TEXT,
-                confidence FLOAT,
-                latency_ms FLOAT
-            );
-        """)
-        pg_conn.commit()
-        print("Connected to Aiven PostgreSQL for live Grafana dashboard metrics!")
-    except Exception as e:
-        print(f"PostgreSQL connection note: {e}")
-else:
-    print(f"Note: MLFLOW_TRACKING_URI not pointing to aivencloud.com (current: {PG_URI[:15]}...)")
+def get_db_connection():
+    global pg_conn
+    if pg_conn and not pg_conn.closed:
+        return pg_conn
+    if PG_URI and "aivencloud.com" in PG_URI:
+        try:
+            pg_conn = psycopg2.connect(PG_URI)
+            with pg_conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS model_inferences (
+                        id SERIAL PRIMARY KEY,
+                        timestamp TIMESTAMPTZ DEFAULT NOW(),
+                        elevation INT,
+                        predicted_class INT,
+                        tree_species TEXT,
+                        confidence FLOAT,
+                        latency_ms FLOAT
+                    );
+                """)
+                pg_conn.commit()
+            print("Connected to Aiven PostgreSQL for live Grafana dashboard metrics!")
+            return pg_conn
+        except Exception as e:
+            print(f"PostgreSQL connection note: {e}")
+            pg_conn = None
+            return None
+    return None
+
+# Initial connection attempt
+get_db_connection()
 
 def connect_consumer():
     """Initializes and returns a Confluent Kafka Consumer."""
@@ -114,9 +120,10 @@ def start_scoring_service():
                     )
 
                     # Persist to PostgreSQL for Grafana SQL Dashboard
-                    if pg_conn:
+                    conn = get_db_connection()
+                    if conn:
                         try:
-                            with pg_conn.cursor() as cur:
+                            with conn.cursor() as cur:
                                 cur.execute("""
                                     INSERT INTO model_inferences (elevation, predicted_class, tree_species, confidence, latency_ms)
                                     VALUES (%s, %s, %s, %s, %s);
@@ -127,9 +134,10 @@ def start_scoring_service():
                                     enriched_event['confidence'],
                                     enriched_event['latency_ms']
                                 ))
-                                pg_conn.commit()
+                                conn.commit()
                         except Exception as pg_err:
-                            pass
+                            print(f"DB insert retry error: {pg_err}")
+                            pg_conn = None
                     records_processed += 1
 
                     print(

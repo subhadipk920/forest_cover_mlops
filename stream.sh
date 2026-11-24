@@ -25,10 +25,8 @@ if ! docker ps | grep -q "forest_cover_mlops-api" && ! docker ps | grep -q "fore
     sleep 5
 fi
 
-# 3. Create Kafka topic if not exists
-docker exec $(docker compose ps -q kafka) /opt/kafka/bin/kafka-topics.sh \
-    --bootstrap-server localhost:9092 \
-    --create --if-not-exists --topic terrain_survey.raw --partitions 1 --replication-factor 1 2>/dev/null || true
+# 3. Create Kafka topic if not exists (quiet)
+docker exec $(docker ps -q -f name=forest_kafka_broker) /bin/kafka-topics --bootstrap-server localhost:9092 --create --if-not-exists --topic terrain_survey.raw --partitions 1 --replication-factor 1 2>/dev/null || true
 
 echo "======================================================================"
 echo "🌲 STREAMING & REAL-TIME PREDICTION"
